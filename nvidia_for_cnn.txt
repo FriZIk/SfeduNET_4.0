@@ -1,0 +1,139 @@
+ssh cyber@10.131.155.17
+
+1. Прикольная команда для вывода настроек видеосистемы: sudo nvidia-settings
+2. nvidia-smi - информация о GPU
+
+
+Попытка прогона бенчмарков:
+1. sudo apt install nvidia-cuda-toolkit
+
+2. nvcc --version
+
+3. Теперь требуется зхагрузить набор библиотек cuDNN, для этого нужна зарегистрировать на сайте nvidia и скачать 
+cuDNN Developer Library for Ubuntu18.04 (Deb). Из репозитриев убунту поставилась старая CUDA, потом обновим не 
+я надеюсь. Наиболее актуальная версия CUDA 11.5
+
+4. Сначала ставим runtime library, sudo dpkg -i libcudnn8_8.0.5.39-1+cuda10.1_amd64.deb
+
+5. sudo dpkg -i libcudnn8-dev_8.0.5.39-1+cuda10.1_amd64.deb
+
+6. whereis cudnn.h - чтобы узнать где cuDNN, но чё то мне это как-то слабо помогло так что в случае чего лучше обратиться
+к вот этой инструкции https://newbedev.com/how-to-verify-cudnn-installation. Следующей командой удалось проверить версию 
+cuDNN: cat /usr/include/x86_64-linux-gnu/cudnn_v*.h | grep CUDNN_MAJOR -A 2   
+
+7. Прокнем всё таки бенчмарк с PyTorch: git clone https://github.com/ryujaehun/pytorch-gpu-benchmark.git
+Для запуска просто: ./test.sh. Сам бенч взят отсюда: https://github.com/ryujaehun/pytorch-gpu-benchmark
+
+8. Ещё один хочу бенч для тензорфлоу попробовать: 
+	pip install --upgrade pip
+	pip3 install tensorflow 
+9. C ходу не вышло, придётся прописывать переменные окружения
+
+10. sudo cp /usr/lib/x86_64-linux-gnu/libcudnn.so /usr/lib/cuda/lib64
+    sudo cp /usr/include/cudnn.h /usr/lib/cuda/include
+    sudo chmod a+r /usr/include/cudnn.h 
+    echo 'export LD_LIBRARY_PATH=/usr/lib/cuda/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+
+    Вот это может быть попробовать что ли.
+    echo 'export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/lib/cuda/lib64' >> ~/.bashrc
+
+    echo 'export LD_LIBRARY_PATH=/usr/lib/cuda/include:$LD_LIBRARY_PATH' >> ~/.bashrc
+    source ~/.bashrc
+
+11. Не получилось, попробую установить конду, может быть поможет, а может и нет
+
+12. Короче просто не рабоатет скорее всего эта куда с tensorflow 2.7, поставили 2.2 теперь всё работает, пипец
+Что то какая-то херь, работает всё в torch но не работает в tensorflow
+
+13. Проблема была в ссылках, зашли в папку /usr/lib/cuda/lib64 и выполнить следующую комнаду sudo ln -s libcudnn.so libcudnn.so.7
+
+тест в PyTorch
+```
+import torch
+torch.cuda.is_available()
+torch.cuda.current_device()
+torch.cuda.device(0)
+torch.cuda.device_count()
+torch.cuda.get_device_name(0)
+```
+
+14. Как запустить юпитер, а вот так: jupyter notebook --ip 0.0.0.0 --no-browser --port=1234
+10.131.155.17:1234
+
+09.12.2021
+Продолжаем разговор, сегодня я хочу запустить всё это говно на сервере, нашу сеть с амброзией и сеть с дорогами, ну и в
+целом подготовить сервер к использованию на хакатоне.
+1. Первым делом поставим на всякий случай xrdp чтобы можно было подрубиться при желании, sudo apt install xrdp
+
+2. Не получилось, ошибка: Failed to get convolution algorithm. This is probably because cuDNN failed to initialize. Не знаю
+с чем связанна, сейчас попробую погуглить, может что-то найду.
+
+3. Вот это статья по которой я всё пытался ставить, CuDNN и прочий кал, ну не вышло https://towardsdatascience.com/installing-tensorflow-gpu-in-ubuntu-20-04-4ee3ca4cb75d
+Ну вернее вышло просто не то что надо)
+
+4. Чек всего подряд, иногда путь вообще не совпадают, хз https://gist.github.com/Jongbhin/ad9aac8369751dbd84ca6a266a507bc7
+
+5. Если что-то потеряем всегда можно whereis cudnn кастануть и всё. Вот тут что-то про пути есть, фиг знает https://newbedev.com/how-to-verify-cudnn-installation
+
+6. На всякий случай оставлю тут нотацию как писать правильно а то в статье той (свёрточная полносвязная нейронная сеть за 
+10 минут https://colab.research.google.com/drive/1nseete5huZlWM7Ak0qL-T75Dbk0mdr-Z?usp=sharing#scrollTo=DoWp43WxJDNT) неправильно написанно 
+	```
+	model.compile(loss='binary_crossentropy',
+  	optimizer=tf.keras.optimizers.RMSprop(lr=2e-5),
+  	metrics=['acc'])
+	```
+7. Гайд по установке драйверов nvidia на ubuntu https://www.cyberciti.biz/faq/ubuntu-linux-install-nvidia-driver-latest-proprietary-driver/
+8. Вообще проблема скорее всего не в памяти а именно в том что там как-то по конченном стал СuDNN
+9. По поводу конченных инстуркций вот этих https://stackoverflow.com/questions/47068709/your-cpu-supports-instructions-that-this-tensorflow-binary-was-not-compiled-to-u
+
+Перенастройка сервера в СКБ:
+1. Cервер ЮФУ для SfeduNET: frizik@10.133.0.64, подключаться по openvpn.
+2. Сервер в СКБ: cyber@10.100.10.5, подключаться по wireguard (если удалённо).
+3. Сервер в СКБ: cyber@10.131.155.17, если локально из сети SKBKIT217.
+4. Сервер ЮФУ для SfeduNET: frizik@10.100.10.3 чреез wireguard (не работает через впн, говно ебучее)
+5. http://tagproject.sfedu.ru/ - сайт проекта
+6. Сейчас походу новый будет, а нет тот же остался
+
+Так, ещё раз, у нас есть CUDA 10.1 
+Актуальная версия tensorflow=2.7 уже установленна
+Теперь нужно выяснить какая для неё требуется cuda и CuDNN, поддержка видеокарты GTX 980 закончилась на 11 версии CUDA, 
+так что современный тензорфлоу на ней запустить нельзя. Вот тут норм всё опсианно в какой последовательнсоти делать, 
+https://www.tensorflow.org/install/gpu. Однако вот тут описанны все поддерживаепмые видеокарты и это забей 
+https://gist.github.com/standaloneSA/99788f30466516dbcc00338b36ad5acf.
+
+
+Алгоритм поиска опасной зоны
+1. Ищем на кадре человека, отрисовывем контур вокруг него
+2. Ищем движение, если человек и движение пересекаются то вычитаем человека и остаётся только опасность.
+3. Человека зелёным ковш красным и едем дальше
+
+Теперь как будем делать датасет
+1. Буду размечать сейчас 
+
+2. https://docs.opencv.org/4.x/d5/daf/tutorial_py_histogram_equalization.html - по идее может убрать немного бликов, но не все, фаербол на пол экрана точно не может
+3. Статья про RESnet нейрохайве на https://neurohive.io/ru/vidy-nejrosetej/resnet-34-50-101/
+
+
+1. https://www.tensorflow.org/install
+https://www.tensorflow.org/install/gpu
+https://developer.nvidia.com/cuda-gpus
+
+Приколы от Вадима:
+sudo docker run —gpus all -it —mount type=bind,source=/home/cyber/Dev/ambrosia,target=/media/ambros -p 1234:1234 —shm-size=1024m 0b7c1e7aa055 bash
+jupyter notebook —allow-root —ip 0.0.0.0 —no-browser —port=1234
+
+sudo ln -s /usr/local/cuda-11.1/targets/x86_64-linux/lib/libcusolver.so.10 /usr/local/cuda/targets/x86_64-linux/lib/libcusolver.so.10
+
+
+/usr/local/cuda/targets/x86_64-linux/lib/libnppist.so.11 - папка назначения
+/usr/local/cuda-11.0/targets/x86_64-linux/lib/libnppist.so.11 - папка где лежат все либы кудовские
+
+Надо бы по итогу сформировать список каких-то хороших нейросетей, приятных так сказать. Сейчас попробуем
+1. https://habr.com/ru/company/dataart/blog/350120/ - про Yolo на русском
+2. https://habr.com/ru/post/503200/ - ещё одна статья про нейросеть Yolo
+3. https://towardsdatascience.com/image-data-labelling-and-annotation-everything-you-need-to-know-86ede6c684b1 - хорошая статья про типы разметки датасетов и тд
+4. https://www.makesense.ai - сайт которым я для разметки датасета пользовался, не знаю хороший или нет, много всего руками потом делать пришлось, надо будет ещё его потестить
+5. https://habr.com/ru/post/514450/ - статья о принципах работы Yolo и Deep Sort
+6. https://learnopencv.com/read-write-and-display-a-video-using-opencv-cpp-python/ - открытие видео в opencv
+7. https://blog.paperspace.com/train-yolov5-custom-data/ - ещё одна статья про yolo, надо будет её подробнее изучить
+8. https://github.com/taipingeric/yolo-v4-tf.keras - вот по этой дрысне на хакатоне пытались сделать, получилось так себе
